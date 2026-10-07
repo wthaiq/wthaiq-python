@@ -175,7 +175,7 @@ def test_upload_from_open_file(tmp_path: Path) -> None:
     ("file", "params", "message"),
     [
         (b"not a pdf", {}, "must be a PDF"),
-        ("BIG", {}, "20 MB"),
+        ("BIG", {}, "10 MB"),
         (PDF, {"unknown": 1}, "Unknown document parameter"),
         (PDF, {"kind": 3}, "kind must be a string"),
         (PDF, {"field_map": {"a": 1}}, "field_map"),
@@ -188,7 +188,7 @@ def test_upload_from_open_file(tmp_path: Path) -> None:
 )
 def test_upload_validation(file: object, params: dict[str, object], message: str) -> None:
     if file == "BIG":
-        file = b"%PDF-" + b"0" * (20 * 1024 * 1024)
+        file = b"%PDF-" + b"0" * (10 * 1024 * 1024)
     transport = FakeTransport(response(201, DOCUMENT))
     with pytest.raises(wthaiq.InvalidArgumentError, match=message):
         make_client(transport).documents.create(file, params)  # type: ignore[arg-type]

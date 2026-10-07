@@ -240,7 +240,7 @@ document = wt.documents.create(
 document = wt.documents.retrieve(document.id)
 ```
 
-The file must be a PDF of at most 20 MB.
+The file must be a PDF of at most 10 MB.
 
 ### Identity verifications and public verification
 

@@ -22,7 +22,7 @@ FileContent = Union[bytes, bytearray, memoryview, IO[bytes]]
 FileInput = Union[str, "os.PathLike[str]", FileContent, "tuple[str, FileContent]"]
 """A path, raw bytes, a binary file object, or ``(filename, bytes_or_file)``."""
 
-MAX_BYTES = 20 * 1024 * 1024
+MAX_BYTES = 10 * 1024 * 1024
 _DOCUMENT_KEYS = frozenset({"kind", "field_map", "filename"})
 
 
@@ -62,7 +62,7 @@ def _multipart(content: bytes, filename: str, params: Mapping[str, Any]) -> Spec
     if unknown:
         raise InvalidArgumentError(f"Unknown document parameter(s): {', '.join(unknown)}.")
     if len(content) > MAX_BYTES:
-        raise InvalidArgumentError("The file is larger than the 20 MB limit.")
+        raise InvalidArgumentError("The file is larger than the 10 MB limit.")
     if not looks_like_pdf(content):
         raise InvalidArgumentError("The file must be a PDF (it must start with %PDF-).")
     custom_name = params.get("filename")
@@ -98,7 +98,7 @@ class Documents(SyncResource):
         /,
         **kwargs: Unpack[DocumentCreateKwargs],
     ) -> objects.Document:
-        """Uploads a PDF (at most 20 MB) as ``multipart/form-data``."""
+        """Uploads a PDF (at most 10 MB) as ``multipart/form-data``."""
         values, options = split_params(params, kwargs)
         content, filename = _read_file(file)
         body, info = self._raw(_multipart(content, filename, values), options)
@@ -123,7 +123,7 @@ class AsyncDocuments(AsyncResource):
         /,
         **kwargs: Unpack[DocumentCreateKwargs],
     ) -> objects.Document:
-        """Uploads a PDF (at most 20 MB) as ``multipart/form-data``."""
+        """Uploads a PDF (at most 10 MB) as ``multipart/form-data``."""
         values, options = split_params(params, kwargs)
         if isinstance(file, (str, os.PathLike)):
             content, filename = await asyncio.to_thread(_read_file, file)
