@@ -1,0 +1,91 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wthaiq"
+dynamic = ["version"]
+description = "Official Python library for the Wthaiq e-signature API."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.10"
+authors = [{ name = "Wthaiq", email = "support@wthaiq.com" }]
+maintainers = [{ name = "Wthaiq", email = "support@wthaiq.com" }]
+keywords = ["wthaiq", "e-signature", "electronic signature", "esign", "pades", "api", "sdk"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: AsyncIO",
+    "Topic :: Office/Business",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+httpx = ["httpx>=0.24"]
+
+[project.urls]
+Homepage = "https://developers.wthaiq.com"
+Documentation = "https://developers.wthaiq.com/docs"
+Repository = "https://github.com/wthaiq/wthaiq-python"
+Issues = "https://github.com/wthaiq/wthaiq-python/issues"
+Changelog = "https://github.com/wthaiq/wthaiq-python/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/wthaiq/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/wthaiq"]
+core-metadata-version = "2.4"
+
+[tool.hatch.build.targets.sdist]
+core-metadata-version = "2.4"
+include = [
+    "/src",
+    "/tests",
+    "/examples",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+    "/SECURITY.md",
+    "/CONTRIBUTING.md",
+    "/pyproject.toml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = ["integration: runs against a real Wthaiq API (needs WTHAIQ_API_KEY and WTHAIQ_API_BASE)"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+files = ["src", "tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "C4", "PIE", "PT", "RET", "PGH"]
+
+ignore = ["UP007", "RET505", "SIM105"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011", "PT011", "PT017", "PT018", "E501"]
+
+[tool.ruff.format]
+quote-style = "double"
