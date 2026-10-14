@@ -169,7 +169,17 @@ class AsyncIdentityVerifications(AsyncResource):
         )
 
 
-def _not_found_verification(error: NotFoundError) -> objects.Verification | None:
+def _not_found_verification(error: NotFoundError, reference: str) -> objects.Verification | None:
+    info = ResponseInfo(error.status_code, dict(error.headers))
+    if error.code == "not_found":
+        missing = {
+            "object": "verification",
+            "reference": reference,
+            "found": False,
+            "status": "not_found",
+            "integrity": "unknown",
+        }
+        return objects.Verification(missing, last_response=info)
     try:
         decoded = json.loads(error.raw_body)
     except ValueError:
@@ -179,9 +189,7 @@ def _not_found_verification(error: NotFoundError) -> objects.Verification | None
         and decoded.get("object") == "verification"
         and "error" not in decoded
     ):
-        return objects.Verification(
-            decoded, last_response=ResponseInfo(error.status_code, dict(error.headers))
-        )
+        return objects.Verification(decoded, last_response=info)
     return None
 
 
@@ -194,7 +202,8 @@ class Verifications(SyncResource):
         """Looks up a reference such as ``WTQ-1A2B3C4D5E6F``.
 
         An unknown reference returns a :class:`~wthaiq.objects.Verification` with
-        ``found=False`` instead of raising.
+        ``found=False`` instead of raising, whether the API answers 404 with a verification body
+        or with the error code ``not_found``.
         """
         parsed: ParsedOptions = options_only("retrieve", options)
         try:
@@ -202,7 +211,7 @@ class Verifications(SyncResource):
                 "GET", build_path("/verifications/{}", reference), objects.Verification, parsed
             )
         except NotFoundError as error:
-            result = _not_found_verification(error)
+            result = _not_found_verification(error, reference)
             if result is None:
                 raise
             return result
@@ -217,7 +226,8 @@ class AsyncVerifications(AsyncResource):
         """Looks up a reference such as ``WTQ-1A2B3C4D5E6F``.
 
         An unknown reference returns a :class:`~wthaiq.objects.Verification` with
-        ``found=False`` instead of raising.
+        ``found=False`` instead of raising, whether the API answers 404 with a verification body
+        or with the error code ``not_found``.
         """
         parsed: ParsedOptions = options_only("retrieve", options)
         try:
@@ -225,7 +235,7 @@ class AsyncVerifications(AsyncResource):
                 "GET", build_path("/verifications/{}", reference), objects.Verification, parsed
             )
         except NotFoundError as error:
-            result = _not_found_verification(error)
+            result = _not_found_verification(error, reference)
             if result is None:
                 raise
             return result

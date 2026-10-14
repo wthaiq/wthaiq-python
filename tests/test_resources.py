@@ -187,6 +187,16 @@ CASES = [
          lambda c: c.signers.create_signing_session("sgr_1"),
          "POST", "/signers/sgr_1/signing_session", body={},
          reply={"object": "signing_session", "mode": "iframe"}, result=objects.SigningSession),
+    Case("signers.decide_identity_match",
+         lambda c: c.signers.decide_identity_match("sgr_1", decision="approve",
+                                                   note="Checked by phone"),
+         "POST", "/signers/sgr_1/identity_match",
+         body={"decision": "approve", "note": "Checked by phone"},
+         reply=SIGNER, result=objects.Signer),
+    Case("signers.decide_identity_match (dict)",
+         lambda c: c.signers.decide_identity_match("sgr_1", {"decision": "reject"}),
+         "POST", "/signers/sgr_1/identity_match", body={"decision": "reject"},
+         reply=SIGNER, result=objects.Signer),
     Case("documents.retrieve", lambda c: c.documents.retrieve("doc_1"), "GET", "/documents/doc_1",
          reply={"id": "doc_1", "object": "document", "pages": 3}, result=objects.Document),
     Case("identity_verifications.retrieve", lambda c: c.identity_verifications.retrieve("idv_12"),
@@ -379,6 +389,118 @@ def test_verification_not_found_is_a_result() -> None:
         ).verifications.retrieve("WTQ-NOPE")
 
     assert asyncio.run(run()).found is False
+
+
+def test_verification_not_found_error_code_is_a_result() -> None:
+    transport = FakeTransport(error(404, "not_found"))
+    result = make_client(transport).verifications.retrieve("WTQ-NOPE")
+    assert isinstance(result, objects.Verification)
+    assert result.to_dict() == {
+        "object": "verification",
+        "reference": "WTQ-NOPE",
+        "found": False,
+        "status": "not_found",
+        "integrity": "unknown",
+    }
+    assert result.last_response is not None and result.last_response.status_code == 404
+    assert result.last_response.request_id == "req_0123456789abcdef01"
+
+    async def run() -> objects.Verification:
+        return await make_async_client(
+            AsyncFakeTransport(error(404, "not_found"))
+        ).verifications.retrieve("WTQ-NOPE")
+
+    assert asyncio.run(run()).found is False
+
+
+NAME_MATCH = {
+    "state": "approved",
+    "verdict": "major",
+    "expected_name": "Noha Ahmed Ali",
+    "document_name": "Nuha Ahmad Aly",
+    "document_type": "Identity Card",
+    "country": "EGY",
+    "id_last4": "1234",
+    "decided_by": "API",
+    "decided_at": 1791353999,
+    "deadline": 1791958089,
+}
+
+
+def test_decide_identity_match_returns_the_signer_with_its_name_match() -> None:
+    signer = dict(SIGNER)
+    signer["require_identity"] = True
+    signer["identity"] = {
+        "status": "approved",
+        "provider": "external",
+        "level": "aes",
+        "name_match": NAME_MATCH,
+    }
+    transport = FakeTransport(response(200, signer))
+    result = make_client(transport).signers.decide_identity_match("sgr_1", decision="approve")
+    assert isinstance(result, objects.Signer)
+    assert result.identity is not None
+    match = result.identity.name_match
+    assert isinstance(match, objects.NameMatch)
+    assert isinstance(match, wthaiq.NameMatch)
+    assert match.state == "approved"
+    assert match.verdict == "major"
+    assert match.decided_by == "API"
+    assert match.is_awaiting_decision is False
+    assert match.to_dict() == NAME_MATCH
+    assert result.identity_match is None
+
+
+def test_decide_identity_match_conflict_when_nothing_is_pending() -> None:
+    transport = FakeTransport(error(409, "identity_match_not_pending", param="decision"))
+    with pytest.raises(wthaiq.ConflictError) as info:
+        make_client(transport).signers.decide_identity_match("sgr_1", decision="reject")
+    assert info.value.code == "identity_match_not_pending"
+    assert info.value.param == "decision"
+
+
+def test_name_match_on_events_and_identity_verifications() -> None:
+    event = {
+        "id": "evt_2",
+        "object": "event",
+        "type": "signer.identity_match_hold",
+        "created_at": 1,
+        "livemode": True,
+        "data": {
+            "object": {
+                "id": "sgr_1",
+                "object": "signer",
+                "signature_request": "sr_1",
+                "identity": {"status": "in_review", "name_match": None},
+                "identity_match": {"state": "awaiting", "verdict": "major",
+                                   "expected_name": "A B", "document_name": "C D"},
+            }
+        },
+    }  # fmt: skip
+    client = make_client(
+        FakeTransport(
+            response(200, event),
+            response(
+                200,
+                {
+                    "id": "idv_7",
+                    "object": "identity_verification",
+                    "name_match": {"state": "recorded"},
+                },
+            ),
+            response(200, {"id": "idv_8", "object": "identity_verification", "name_match": None}),
+        )
+    )
+    signer = client.events.retrieve("evt_2").data.object
+    assert isinstance(signer, objects.Signer)
+    assert isinstance(signer.identity_match, objects.NameMatch)
+    assert signer.identity_match.is_awaiting_decision is True
+    assert signer.identity_match.document_name == "C D"
+    assert signer.identity is not None and signer.identity.name_match is None
+    verification = client.identity_verifications.retrieve("idv_7")
+    assert isinstance(verification.name_match, objects.NameMatch)
+    assert verification.name_match.state == "recorded"
+    assert client.identity_verifications.retrieve("idv_8").name_match is None
 
 
 def test_verification_real_404_still_raises() -> None:

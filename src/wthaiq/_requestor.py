@@ -103,6 +103,7 @@ class ClientConfig:
     api_version: str
     user_agent: str
     retry_policy: RetryPolicy
+    language: str | None = None
 
 
 @dataclass(frozen=True)
@@ -149,6 +150,8 @@ class _BaseRequestor:
             "Wthaiq-Version": config.api_version,
             "Accept": spec.accept,
         }
+        if config.language is not None:
+            headers["Accept-Language"] = config.language
         body: bytes | None = None
         if spec.body is not None:
             body = spec.body

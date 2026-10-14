@@ -30,6 +30,7 @@ __all__ = [
     "Flow",
     "IdentityVerification",
     "Money",
+    "NameMatch",
     "PdfFile",
     "RateLimit",
     "Reminder",
@@ -410,10 +411,45 @@ class Template(WthaiqObject):
 # --- signature requests ----------------------------------------------------------------------
 
 
+class NameMatch(WthaiqObject):
+    """The signer name in the request compared with the name on the identity document.
+
+    ``state`` is ``not_compared``, ``auto_ok`` (same or near-identical name), ``awaiting``
+    (different name, signing held until you decide with ``signers.decide_identity_match()``),
+    ``recorded`` (different name, logged without a hold), ``approved``, ``rejected`` or
+    ``expired``. ``verdict`` is ``match``, ``minor`` (one part differs), ``major`` or ``na``
+    (not comparable).
+    """
+
+    __slots__ = ()
+    state: str
+    verdict: str
+    expected_name: str
+    """The signer name sent in the request."""
+    document_name: str
+    """The name read from the identity document."""
+    document_type: str
+    country: str
+    """Issuing country of the document."""
+    id_last4: str
+    """Last four characters of the document number."""
+    decided_by: str
+    """Who decided (empty until a decision), e.g. ``API``."""
+    decided_at: int | None
+    deadline: int
+    """Unix time after which an undecided hold expires."""
+
+    @property
+    def is_awaiting_decision(self) -> bool:
+        """``True`` while signing is held for a decision."""
+        return self.state == "awaiting"
+
+
 class SignerIdentity(WthaiqObject):
     """Identity verification state of a signer."""
 
     __slots__ = ()
+    _nested: ClassVar[Mapping[str, type[WthaiqObject]]] = {"name_match": NameMatch}
     status: str
     provider: str
     level: str
@@ -421,6 +457,8 @@ class SignerIdentity(WthaiqObject):
     reason_code: str | None
     updated_at: int | None
     resubmit_steps: list[str] | None
+    name_match: NameMatch | None
+    """The name-match result, or ``None`` when no comparison was recorded."""
 
 
 @_register("signer")
@@ -428,7 +466,10 @@ class Signer(WthaiqObject):
     """A signer of a signature request."""
 
     __slots__ = ()
-    _nested: ClassVar[Mapping[str, type[WthaiqObject]]] = {"identity": SignerIdentity}
+    _nested: ClassVar[Mapping[str, type[WthaiqObject]]] = {
+        "identity": SignerIdentity,
+        "identity_match": NameMatch,
+    }
     id: str
     object: str
     name: str
@@ -449,6 +490,8 @@ class Signer(WthaiqObject):
     workflow_id: str | None
     workflow_version: int | None
     vendor_data: str | None
+    identity_match: NameMatch | None
+    """Only inside ``signer.identity_match_hold`` and ``signer.identity_match_decided`` payloads."""
 
 
 class Source(WthaiqObject):
@@ -740,6 +783,7 @@ class Document(WthaiqObject):
 @_register("identity_verification")
 class IdentityVerification(WthaiqObject):
     __slots__ = ()
+    _nested: ClassVar[Mapping[str, type[WthaiqObject]]] = {"name_match": NameMatch}
     id: str
     object: str
     provider: str
@@ -747,6 +791,8 @@ class IdentityVerification(WthaiqObject):
     status: str
     level: str
     verification_url: str | None
+    name_match: NameMatch | None
+    """The name-match result of this verification, or ``None``."""
     created_at: int
 
 

@@ -10,7 +10,15 @@ import wthaiq
 from wthaiq import HttpRequest, HttpResponse, InvalidArgumentError
 from wthaiq.transport import AsyncHttpxTransport, ThreadedAsyncTransport, UrllibTransport
 
-from .conftest import LIVE_KEY, TEST_KEY, AsyncFakeTransport, FakeTransport, response
+from .conftest import (
+    LIVE_KEY,
+    TEST_KEY,
+    AsyncFakeTransport,
+    FakeTransport,
+    make_async_client,
+    make_client,
+    response,
+)
 
 
 def test_defaults() -> None:
@@ -79,6 +87,9 @@ def test_base_url_refused(url: str) -> None:
         {"max_retries": 1.5},
         {"api_version": ""},
         {"app_info": {"version": "1"}},
+        {"language": ""},
+        {"language": "en us"},
+        {"language": 1},
     ],
 )
 def test_invalid_options(options: dict[str, object]) -> None:
@@ -92,6 +103,40 @@ def test_app_info_in_user_agent() -> None:
     )
     assert client.user_agent.endswith(" Acme/2.1 (https://acme.example)")
     assert wthaiq.Client(TEST_KEY, app_info={"name": "Acme"}).user_agent.endswith(" Acme")
+
+
+def test_no_accept_language_by_default() -> None:
+    transport = FakeTransport(response(200, {"object": "usage"}))
+    make_client(transport).usage.retrieve()
+    assert all(name.lower() != "accept-language" for name in transport.last.headers)
+
+
+def test_language_option_is_sent_as_accept_language() -> None:
+    transport = FakeTransport(
+        response(200, {"object": "usage"}),
+        response(200, {"id": "sgr_1", "object": "signer"}),
+        response(200, {"object": "usage"}),
+    )
+    client = make_client(transport, language="en")
+    client.usage.retrieve()
+    assert transport.last.headers["Accept-Language"] == "en"
+    client.signers.decide_identity_match("sgr_1", decision="approve")
+    assert transport.last.headers["Accept-Language"] == "en"
+    client.usage.retrieve(headers={"accept-language": "ar"})
+    sent = {k: v for k, v in transport.last.headers.items() if k.lower() == "accept-language"}
+    assert sent == {"accept-language": "ar"}
+
+    arabic = FakeTransport(response(200, {"object": "usage"}))
+    make_client(arabic, language="ar").usage.retrieve()
+    assert arabic.last.headers["Accept-Language"] == "ar"
+    assert wthaiq.Client(TEST_KEY, language="en-GB").is_test_mode()
+
+    async def run() -> None:
+        async_transport = AsyncFakeTransport(response(200, {"object": "usage"}))
+        await make_async_client(async_transport, language="en").usage.retrieve()
+        assert async_transport.last.headers["Accept-Language"] == "en"
+
+    asyncio.run(run())
 
 
 def test_callable_http_client() -> None:

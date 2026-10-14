@@ -2,7 +2,8 @@
 
 Every exception derives from :class:`WthaiqError`. HTTP errors returned by the API derive from
 :class:`ApiError` and are mapped by HTTP status. Branch on :attr:`ApiError.code` (machine readable),
-never on the message (human text, currently in Arabic).
+never on the message (human text: Arabic by default, English with the client option
+``language="en"``).
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from collections.abc import Mapping
 from typing import Any
 
 __all__ = [
+    "MAX_SIGNERS",
     "PLANS_URL",
     "VERIFY_URL",
     "ApiConnectionError",
@@ -29,6 +31,7 @@ __all__ = [
     "RateLimitError",
     "ServerError",
     "SignatureVerificationError",
+    "TooManySignersError",
     "UnexpectedResponseError",
     "ValidationError",
     "WthaiqError",
@@ -39,6 +42,9 @@ PLANS_URL = "https://developers.wthaiq.com/plans"
 
 VERIFY_URL = "https://developers.wthaiq.com/verify"
 """Developer portal page where the company is verified (required for live mode)."""
+
+MAX_SIGNERS = 5
+"""Most signers allowed in one live signature request (the ``too_many_signers`` limit)."""
 
 
 class WthaiqError(Exception):
@@ -154,6 +160,22 @@ class ValidationError(InvalidRequestError):
         return {} if self.param is None else {self.param: self.message}
 
 
+class TooManySignersError(ValidationError):
+    """400 ``too_many_signers``: a live signature request has more signers than allowed.
+
+    Every signer of a live request counts as one send from the plan quota. Split the signers over
+    several requests of at most :attr:`max_signers` signers each.
+    """
+
+    @property
+    def max_signers(self) -> int:
+        """Most signers per request: ``max_signers`` from the error, else :data:`MAX_SIGNERS`."""
+        value = self.error.get("max_signers")
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+            return value
+        return MAX_SIGNERS
+
+
 class NotFoundError(InvalidRequestError):
     """404: the object does not exist, belongs to another account, or is in the other mode."""
 
@@ -190,13 +212,25 @@ class PermissionError(ApiError):
 
     @property
     def upgrade_url(self) -> str | None:
-        """Where to upgrade the plan or verify the company."""
+        """Where to upgrade the plan (``upgrade_url``).
+
+        For ``kyb_required`` it returns :attr:`verify_url`, so that one property always points to
+        the page that unblocks the call.
+        """
         url = _string_field(self.error, "upgrade_url")
         if url is not None:
             return url
         if self.is_kyb_required():
-            return VERIFY_URL
+            return self.verify_url
         return PLANS_URL if self.is_plan_feature_unavailable() else None
+
+    @property
+    def verify_url(self) -> str | None:
+        """Where to verify the company (``verify_url``, with ``kyb_required``), else ``None``."""
+        url = _string_field(self.error, "verify_url")
+        if url is not None:
+            return url
+        return VERIFY_URL if self.is_kyb_required() else None
 
     def is_plan_feature_unavailable(self) -> bool:
         return self.code == "plan_feature_unavailable"
@@ -216,6 +250,7 @@ class PaymentRequiredError(ApiError):
 
     @property
     def upgrade_url(self) -> str:
+        """Where to buy, renew or upgrade the plan (``upgrade_url``), else :data:`PLANS_URL`."""
         return _string_field(self.error, "upgrade_url") or PLANS_URL
 
     def is_plan_required(self) -> bool:
@@ -257,7 +292,9 @@ def _string_field(source: Mapping[str, Any], key: str) -> str | None:
     return value if isinstance(value, str) and value != "" else None
 
 
-def _error_class(status: int) -> builtins.type[ApiError]:
+def _error_class(status: int, code: str | None = None) -> builtins.type[ApiError]:
+    if status == 400 and code == "too_many_signers":
+        return TooManySignersError
     mapping: dict[int, builtins.type[ApiError]] = {
         400: ValidationError,
         401: AuthenticationError,
@@ -306,11 +343,12 @@ def error_from_response(status: int, headers: Mapping[str, str], body: str) -> A
     if message is None:
         snippet = re.sub(r"\s+", " ", re.sub(r"<[^>]*>", " ", body)).strip()[:200]
         message = f"The Wthaiq API returned HTTP {status}" + (f": {snippet}" if snippet else ".")
-    return _error_class(status)(
+    code = text("code")
+    return _error_class(status, code)(
         message,
         status_code=status,
         type=text("type"),
-        code=text("code"),
+        code=code,
         param=text("param"),
         request_id=text("request_id") or lower.get("wthaiq-request-id"),
         error=error,

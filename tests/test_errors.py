@@ -113,6 +113,79 @@ def test_payment_required(code: str, check: str) -> None:
     assert info.value.upgrade_url == wthaiq.PLANS_URL
 
 
+def test_too_many_signers_is_typed_and_carries_the_limit() -> None:
+    client = make_client(
+        FakeTransport(
+            error(400, "too_many_signers", param="signers", max_signers=5),
+            error(400, "too_many_signers", param="signers", max_signers=3),
+            error(400, "too_many_signers", param="signers"),
+            error(400, "too_many_signers", param="signers", max_signers="5"),
+            error(400, "too_many_signers", param="signers", max_signers=True),
+            error(400, "test_signer_limit", param="signers"),
+        )
+    )
+    limits = []
+    for _ in range(5):
+        with pytest.raises(wthaiq.TooManySignersError) as info:
+            client.signature_requests.create(title="x")
+        assert isinstance(info.value, wthaiq.ValidationError)
+        assert isinstance(info.value, errors.TooManySignersError)
+        assert info.value.code == "too_many_signers"
+        assert info.value.field_errors == {"signers": "رسالة الخطأ"}
+        limits.append(info.value.max_signers)
+    assert limits == [5, 3, wthaiq.MAX_SIGNERS, wthaiq.MAX_SIGNERS, wthaiq.MAX_SIGNERS]
+    assert wthaiq.MAX_SIGNERS == 5
+    with pytest.raises(wthaiq.ValidationError) as other:
+        client.signature_requests.create(title="x")
+    assert not isinstance(other.value, wthaiq.TooManySignersError)
+    conflict = make_client(FakeTransport(error(409, "too_many_signers")))
+    with pytest.raises(wthaiq.ConflictError) as info409:
+        conflict.account.retrieve()
+    assert not isinstance(info409.value, wthaiq.TooManySignersError)
+
+
+def test_plan_and_kyb_errors_use_the_urls_sent_by_the_api() -> None:
+    plans = "https://developers.wthaiq.com/plans"
+    verify = "https://developers.wthaiq.com/verify"
+    for code in ("plan_required", "plan_expired"):
+        client = make_client(
+            FakeTransport(error(402, code, type="quota_error", upgrade_url=f"{plans}?from={code}"))
+        )
+        with pytest.raises(wthaiq.PaymentRequiredError) as paid:
+            client.signature_requests.send("sr_x")
+        assert paid.value.upgrade_url == f"{plans}?from={code}"
+
+    client = make_client(
+        FakeTransport(error(403, "kyb_required", type="permission_error",
+                            verify_url=f"{verify}?step=2"))
+    )  # fmt: skip
+    with pytest.raises(wthaiq.PermissionDeniedError) as kyb:
+        client.signature_requests.send("sr_x")
+    assert kyb.value.is_kyb_required()
+    assert kyb.value.verify_url == f"{verify}?step=2"
+    assert kyb.value.upgrade_url == f"{verify}?step=2"
+
+    client = make_client(FakeTransport(error(403, "kyb_required", type="permission_error")))
+    with pytest.raises(wthaiq.PermissionDeniedError) as kyb_default:
+        client.signature_requests.send("sr_x")
+    assert kyb_default.value.verify_url == wthaiq.VERIFY_URL
+
+    client = make_client(
+        FakeTransport(error(403, "plan_feature_unavailable", type="permission_error",
+                            feature="embed", required_plan="ap_biz", upgrade_url=plans))
+    )  # fmt: skip
+    with pytest.raises(wthaiq.PermissionDeniedError) as feature:
+        client.signers.create_signing_session("sgr_1")
+    assert feature.value.upgrade_url == plans
+    assert feature.value.verify_url is None
+    assert feature.value.required_plan == "ap_biz"
+
+    client = make_client(FakeTransport(error(403, "forbidden")))
+    with pytest.raises(wthaiq.PermissionDeniedError) as forbidden:
+        client.account.retrieve()
+    assert forbidden.value.verify_url is None
+
+
 def test_rate_limit_error() -> None:
     quota = error(
         429, "daily_cap_reached", type="rate_limit_error", headers={"Retry-After": "3600"}

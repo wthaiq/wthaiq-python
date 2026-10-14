@@ -9,6 +9,7 @@ from . import error, objects, types
 from ._client import DEFAULT_BASE_URL, AsyncClient, Client
 from ._version import API_VERSION, VERSION, __version__
 from .error import (
+    MAX_SIGNERS,
     PLANS_URL,
     VERIFY_URL,
     ApiConnectionError,
@@ -23,6 +24,7 @@ from .error import (
     RateLimitError,
     ServerError,
     SignatureVerificationError,
+    TooManySignersError,
     UnexpectedResponseError,
     ValidationError,
     WthaiqError,
@@ -44,6 +46,7 @@ from .objects import (
     Evidence,
     Flow,
     IdentityVerification,
+    NameMatch,
     PdfFile,
     Reminder,
     ResponseInfo,
@@ -79,6 +82,7 @@ __all__ = [
     "API_VERSION",
     "DEFAULT_BASE_URL",
     "EVENT_TYPES",
+    "MAX_SIGNERS",
     "PLANS_URL",
     "VERIFY_URL",
     "VERSION",
@@ -109,6 +113,7 @@ __all__ = [
     "IdentityVerification",
     "InvalidArgumentError",
     "InvalidRequestError",
+    "NameMatch",
     "NotFoundError",
     "Page",
     "PaymentRequiredError",
@@ -127,6 +132,7 @@ __all__ = [
     "SigningSession",
     "Template",
     "ThreadedAsyncTransport",
+    "TooManySignersError",
     "Transport",
     "UnexpectedResponseError",
     "UrllibTransport",

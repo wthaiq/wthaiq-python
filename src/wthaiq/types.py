@@ -20,6 +20,7 @@ __all__ = [
     "EventRedeliverParams",
     "EventType",
     "FieldMapEntry",
+    "IdentityMatchDecisionParams",
     "LegalLevel",
     "ListParams",
     "RemindersParams",
@@ -247,6 +248,13 @@ class SigningSessionCreateParams(TypedDict, total=False):
     cancel_url: str
 
 
+class IdentityMatchDecisionParams(TypedDict, total=False):
+    decision: Literal["approve", "reject"]
+    """Required. ``approve`` lets the signer finish signing; ``reject`` stops this signer."""
+    note: str
+    """Optional internal note stored with the decision (up to 200 characters)."""
+
+
 class FieldMapEntry(TypedDict, total=False):
     key: str
     label: str
@@ -277,8 +285,7 @@ class WebhookEndpointUpdateParams(TypedDict, total=False):
     status: Literal["enabled", "disabled"]
 
 
-class WebhookEndpointListParams(TypedDict, total=False):
-    limit: int
+class WebhookEndpointListParams(ListParams, total=False): ...
 
 
 class EventListParams(ListParams, total=False):
@@ -318,6 +325,9 @@ class SessionListKwargs(SessionListParams, RequestOptions, total=False): ...
 
 
 class SigningSessionCreateKwargs(SigningSessionCreateParams, RequestOptions, total=False): ...
+
+
+class IdentityMatchDecisionKwargs(IdentityMatchDecisionParams, RequestOptions, total=False): ...
 
 
 class DocumentCreateKwargs(DocumentCreateParams, RequestOptions, total=False): ...

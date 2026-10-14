@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from typing_extensions import Unpack
 
     from ..types import (
+        IdentityMatchDecisionKwargs,
         RequestOptions,
         SessionCreateKwargs,
         SessionListKwargs,
@@ -104,6 +105,26 @@ class Signers(SyncResource):
             body,
         )
 
+    def decide_identity_match(
+        self,
+        id: str,
+        params: Mapping[str, Any] | None = None,
+        /,
+        **kwargs: Unpack[IdentityMatchDecisionKwargs],
+    ) -> objects.Signer:
+        """Decides a name difference held for review and returns the signer.
+
+        Applies when ``identity.name_match.state == "awaiting"`` (announced by the
+        ``signer.identity_match_hold`` event). ``decision="approve"`` lets the signer finish
+        signing, ``decision="reject"`` stops this signer. Secret keys only. Raises
+        :class:`ConflictError` (``identity_match_not_pending``) when nothing awaits a decision,
+        and :class:`NotFoundError` when the signer has no name difference to decide.
+        """
+        body, options = split_params(params, kwargs)
+        return self._request(
+            "POST", build_path("/signers/{}/identity_match", id), objects.Signer, options, body
+        )
+
 
 class AsyncSigners(AsyncResource):
     """Signers and embedded signing (``/signers``)."""
@@ -128,4 +149,20 @@ class AsyncSigners(AsyncResource):
             objects.SigningSession,
             options,
             body,
+        )
+
+    async def decide_identity_match(
+        self,
+        id: str,
+        params: Mapping[str, Any] | None = None,
+        /,
+        **kwargs: Unpack[IdentityMatchDecisionKwargs],
+    ) -> objects.Signer:
+        """Decides a name difference held for review and returns the signer.
+
+        See :meth:`Signers.decide_identity_match`.
+        """
+        body, options = split_params(params, kwargs)
+        return await self._request(
+            "POST", build_path("/signers/{}/identity_match", id), objects.Signer, options, body
         )

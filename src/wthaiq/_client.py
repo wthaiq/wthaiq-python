@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 from collections.abc import Mapping
 from types import TracebackType
 from typing import Any
@@ -80,6 +81,9 @@ def _user_agent(app_info: Mapping[str, str] | None) -> str:
     return f"{agent} {app}"
 
 
+_LANGUAGE = re.compile(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*")
+
+
 def _config(
     api_key: str | None,
     base_url: str,
@@ -89,6 +93,7 @@ def _config(
     api_version: str,
     app_info: Mapping[str, str] | None,
     retry_policy: RetryPolicy | None,
+    language: str | None = None,
 ) -> ClientConfig:
     key = api_key if api_key is not None else os.environ.get("WTHAIQ_API_KEY")
     for name, value in (("timeout", timeout), ("connect_timeout", connect_timeout)):
@@ -98,6 +103,10 @@ def _config(
         raise InvalidArgumentError("max_retries must be a non-negative integer.")
     if not isinstance(api_version, str) or api_version == "":
         raise InvalidArgumentError("api_version must be a non-empty string.")
+    if language is not None and (
+        not isinstance(language, str) or not _LANGUAGE.fullmatch(language)
+    ):
+        raise InvalidArgumentError("language must be a language tag such as 'en' or 'ar'.")
     return ClientConfig(
         api_key=validate_api_key(key),
         base_url=_base_url(base_url),
@@ -107,6 +116,7 @@ def _config(
         api_version=api_version,
         user_agent=_user_agent(app_info),
         retry_policy=retry_policy if retry_policy is not None else RetryPolicy(),
+        language=language,
     )
 
 
@@ -149,6 +159,8 @@ class Client(_ClientBase):
     :param max_retries: automatic retries of transient failures (default 2).
     :param api_version: value of the ``Wthaiq-Version`` header.
     :param app_info: ``{"name": …, "version": …, "url": …}`` appended to the User-Agent.
+    :param language: language of the API's error messages, sent as ``Accept-Language``: ``"en"``
+        for English or ``"ar"`` for Arabic. Default ``None``: no header, Arabic messages.
     :param http_client: a transport, a callable ``(HttpRequest) -> HttpResponse``
         or an ``httpx.Client``.
     :param retry_policy: backoff settings.
@@ -164,6 +176,7 @@ class Client(_ClientBase):
         max_retries: int = 2,
         api_version: str = API_VERSION,
         app_info: Mapping[str, str] | None = None,
+        language: str | None = None,
         http_client: SyncHttpClient | None = None,
         retry_policy: RetryPolicy | None = None,
     ) -> None:
@@ -176,6 +189,7 @@ class Client(_ClientBase):
             api_version,
             app_info,
             retry_policy,
+            language,
         )
         transport, self._owns_transport = resolve_sync_transport(http_client)
         requestor = Requestor(self._config, transport)
@@ -231,6 +245,7 @@ class AsyncClient(_ClientBase):
         max_retries: int = 2,
         api_version: str = API_VERSION,
         app_info: Mapping[str, str] | None = None,
+        language: str | None = None,
         http_client: AsyncHttpClient | None = None,
         retry_policy: RetryPolicy | None = None,
     ) -> None:
@@ -243,6 +258,7 @@ class AsyncClient(_ClientBase):
             api_version,
             app_info,
             retry_policy,
+            language,
         )
         transport, self._owns_transport = resolve_async_transport(http_client)
         requestor = AsyncRequestor(self._config, transport)

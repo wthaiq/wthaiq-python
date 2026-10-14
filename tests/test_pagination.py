@@ -65,6 +65,26 @@ def test_auto_paging_iter_follows_cursors() -> None:
     ]
 
 
+def test_webhook_endpoints_walk_every_page() -> None:
+    def we(n: int) -> dict[str, object]:
+        return {"id": f"we_{n}", "object": "webhook_endpoint", "url": "https://x/hook"}
+
+    transport = FakeTransport(
+        page([we(3), we(2)], True, "we_2"),
+        page([we(1)], False, None),
+    )
+    client = make_client(transport)
+    items = list(client.webhook_endpoints.all(limit=2))
+    assert [item.id for item in items] == ["we_3", "we_2", "we_1"]
+    assert all(isinstance(item, objects.WebhookEndpoint) for item in items)
+    assert query_of(transport.requests[0]) == [("limit", "2")]
+    assert query_of(transport.requests[1]) == [("limit", "2"), ("starting_after", "we_2")]
+
+    one = client.webhook_endpoints.list(limit=1, starting_after="we_2")
+    assert one.has_more is False
+    assert query_of(transport.last) == [("limit", "1"), ("starting_after", "we_2")]
+
+
 def test_all_is_lazy() -> None:
     transport = FakeTransport(*three_pages())  # type: ignore[arg-type]
     iterator = make_client(transport).signature_requests.all(limit=2)

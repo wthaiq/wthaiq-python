@@ -103,6 +103,7 @@ wt = wthaiq.Client(
     connect_timeout=10.0,  # seconds to connect (httpx transport)
     max_retries=2,  # automatic retries of transient failures
     app_info={"name": "AcmeHR", "version": "3.2.0", "url": "https://acme.example"},
+    language="en",  # error messages in English; default: Arabic
 )
 ```
 
@@ -115,6 +116,7 @@ wt = wthaiq.Client(
 | `max_retries` | `2` | Retries after the first attempt (`0` disables retries). |
 | `api_version` | `2026-07-01` | Sent as the `Wthaiq-Version` header. |
 | `app_info` | `None` | Appended to the `User-Agent` (`wthaiq-python/1.0.0 Python/3.12.4 AcmeHR/3.2.0`). |
+| `language` | `None` (Arabic) | Language of error messages, sent as `Accept-Language`: `"en"` or `"ar"`. Error codes never change. |
 | `http_client` | standard library | See [Custom HTTP transport](#custom-http-transport). |
 | `retry_policy` | `RetryPolicy()` | Backoff settings. |
 
@@ -231,6 +233,26 @@ redirect = wt.signers.create_signing_session(
 )
 ```
 
+When the name on a signer's identity document differs from the name in the request,
+`signer.identity.name_match` records it (a `wthaiq.NameMatch`). With the account setting "hold signing
+until a decision" (the default), the `signer.identity_match_hold` event arrives, the state is `awaiting`,
+and signing waits for your decision (secret keys only):
+
+```python
+match = signer.identity.name_match if signer.identity else None
+if match is not None and match.is_awaiting_decision:
+    print(match.expected_name, "/", match.document_name)
+    signer = wt.signers.decide_identity_match(
+        signer.id,
+        decision="approve",  # or "reject" to stop this signer
+        note="Confirmed by phone",  # optional, stored with the decision
+    )
+```
+
+The decision triggers `signer.identity_match_decided`. Both events carry the signer with `identity_match`,
+the result that triggered the event. When nothing awaits a decision the call raises `ConflictError` with
+the code `identity_match_not_pending`.
+
 ### Documents
 
 ```python
@@ -247,6 +269,7 @@ The file must be a PDF of at most 10 MB.
 ```python
 idv = wt.identity_verifications.retrieve("idv_12")
 print(idv.status)  # pending, approved, in_review, resubmission_requested, declined, expired
+print(idv.name_match)  # the name-match result (wthaiq.NameMatch) or None
 
 result = wt.verifications.retrieve("WTQ-1A2B3C4D5E6F")
 if result.found:
@@ -264,6 +287,8 @@ endpoint = wt.webhook_endpoints.create(
 )
 print(endpoint.secret)  # whsec_... returned only once: store it now
 
+for item in wt.webhook_endpoints.all(limit=100):  # every page
+    print(item.id, item.url)
 wt.webhook_endpoints.update(endpoint.id, status="disabled")
 wt.webhook_endpoints.deliveries(endpoint.id)  # last 50 deliveries
 wt.webhook_endpoints.test(endpoint.id)  # sends a synthetic event
@@ -365,7 +390,8 @@ requests run on the standard library in a worker thread, so the async client wor
 
 Every exception derives from `wthaiq.WthaiqError`; HTTP errors derive from `wthaiq.ApiError` and carry
 `status_code`, `code`, `param`, `type`, `request_id`, `error` (the decoded error object), `raw_body` and
-`headers`. Branch on `code`, never on the message (the message is human text, currently in Arabic).
+`headers`. Branch on `code`, never on the message (the message is human text, in Arabic unless the
+client option `language="en"` asks for English).
 
 ```python
 import wthaiq
@@ -375,6 +401,8 @@ try:
         source={"type": "template", "template_id": "tpl_123"},
         signers=[{"name": "Noha", "email": "not-an-email"}],
     )
+except wthaiq.TooManySignersError as e:  # 400 too_many_signers
+    print(f"At most {e.max_signers} signers per request: split them over several requests")
 except wthaiq.ValidationError as e:  # 400
     print(e.code, e.param, e.field_errors)  # invalid_request signers[0].email {...}
 except wthaiq.PaymentRequiredError as e:  # 402 plan_required / plan_expired / insufficient_balance
@@ -383,7 +411,7 @@ except wthaiq.PermissionDeniedError as e:  # 403
     if e.is_plan_feature_unavailable():
         print(f"Needs the {e.required_plan} plan for {e.feature}: {e.upgrade_url}")
     elif e.is_kyb_required():
-        print("Verify your company:", e.upgrade_url)
+        print("Verify your company:", e.verify_url)
 except wthaiq.RateLimitError as e:  # 429
     print(e.code, e.retry_after)
 except wthaiq.ApiError as e:
@@ -395,9 +423,10 @@ except wthaiq.ApiConnectionError as e:  # network failure or timeout
 | Exception | When |
 |---|---|
 | `ValidationError` (`InvalidRequestError`) | 400: missing or invalid parameter (`param` names it). |
+| `TooManySignersError` (`ValidationError`) | 400 `too_many_signers`: more signers than `max_signers` (5) in one request. |
 | `AuthenticationError` | 401: missing, invalid or revoked key; inactive account. |
-| `PaymentRequiredError` | 402: `plan_required`, `plan_expired`, `insufficient_balance`. |
-| `PermissionDeniedError` | 403: `forbidden`, `plan_feature_unavailable`, `kyb_required`, `ip_not_allowed`, `holder_only`. Also importable as `wthaiq.error.PermissionError`. |
+| `PaymentRequiredError` | 402: `plan_required`, `plan_expired`, `insufficient_balance` (`upgrade_url`). |
+| `PermissionDeniedError` | 403: `forbidden`, `plan_feature_unavailable` (`upgrade_url`), `kyb_required` (`verify_url`), `ip_not_allowed`, `holder_only`. Also importable as `wthaiq.error.PermissionError`. |
 | `NotFoundError` (`InvalidRequestError`) | 404: not found, another account's object, or the other mode. |
 | `ConflictError` (`InvalidRequestError`) | 409: `idempotency_key_reused`, `idempotency_in_progress`, `request_not_cancelable`, `pdf_not_ready`, ... |
 | `InvalidRequestError` | Other 4xx, e.g. 405. |

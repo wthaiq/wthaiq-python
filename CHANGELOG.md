@@ -11,6 +11,24 @@ All notable changes to this library are documented here. The format follows
 - Event types `signer.identity_match_hold` and `signer.identity_match_decided` in `EventType` and `EVENT_TYPES`:
   the name on the signer's identity document differs from the name in the request, and the decision on that
   difference. `EVENT_TYPES` now lists 21 types.
+- `signers.decide_identity_match(id, decision="approve" | "reject", note=...)` (sync and async) for
+  `POST /signers/{id}/identity_match`: decides a name difference held for review and returns the signer.
+- `wthaiq.NameMatch` (with `is_awaiting_decision`): `identity.name_match` on signers, `name_match` on identity
+  verifications, and `identity_match` on the signer inside the two name-match events.
+- `TooManySignersError` (a `ValidationError`) for `400 too_many_signers`, with `max_signers` read from the
+  error's `max_signers` (falls back to the new `wthaiq.MAX_SIGNERS` constant, 5).
+- `PermissionError.verify_url` reads `verify_url` from `kyb_required` errors (falls back to `VERIFY_URL`).
+  `upgrade_url` reads the `upgrade_url` the API now sends on `plan_required`, `plan_expired` and
+  `plan_feature_unavailable`.
+- Client option `language` (`"en"` or `"ar"`), sent as `Accept-Language`, for English error messages. The
+  default is unchanged: no header, Arabic messages. Error codes do not change with the language.
+
+### Changed
+
+- `webhook_endpoints.list()` and `all()` accept `starting_after` and follow `next_cursor` across pages, now that
+  the API paginates webhook endpoints like other lists.
+- `verifications.retrieve()` also returns `found=False` when the API answers an unknown reference with a `404`
+  error whose code is `not_found`, so its result does not depend on the server version.
 
 ## [1.0.0] - 2026-10-07
 
