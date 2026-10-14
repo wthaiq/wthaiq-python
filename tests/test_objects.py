@@ -115,4 +115,6 @@ def test_top_level_exports() -> None:
     assert "PermissionError" not in wthaiq.__all__
     for name in wthaiq.__all__:
         assert hasattr(wthaiq, name), name
-    assert len(wthaiq.EVENT_TYPES) == 19
+    assert len(wthaiq.EVENT_TYPES) == 21
+    assert "signer.identity_match_hold" in wthaiq.EVENT_TYPES
+    assert "signer.identity_match_decided" in wthaiq.EVENT_TYPES
