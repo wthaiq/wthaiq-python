@@ -32,7 +32,7 @@ def test_standard_headers_on_get() -> None:
     assert request.headers["Authorization"] == f"Bearer {TEST_KEY}"
     assert request.headers["Wthaiq-Version"] == "2026-07-01"
     assert request.headers["Accept"] == "application/json"
-    assert request.headers["User-Agent"].startswith("wthaiq-python/1.0.0 Python/")
+    assert request.headers["User-Agent"].startswith("wthaiq-python/1.1.0 Python/")
     assert "Idempotency-Key" not in request.headers
     assert "Content-Type" not in request.headers
     assert request.body is None

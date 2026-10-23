@@ -256,13 +256,10 @@ the code `identity_match_not_pending`.
 ### Documents
 
 ```python
-document = wt.documents.create(
-    "contract.pdf", kind="pdf"
-)  # path, bytes, file object or (name, bytes)
-document = wt.documents.retrieve(document.id)
+document = wt.documents.retrieve("doc_...")
 ```
 
-The file must be a PDF of at most 10 MB.
+The API accepts contracts written as text only (in templates or the request); it no longer accepts PDF uploads.
 
 ### Identity verifications and public verification
 

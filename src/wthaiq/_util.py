@@ -86,38 +86,6 @@ def build_path(template: str, *ids: object) -> str:
     return out
 
 
-def _quote_header(value: str) -> str:
-    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\r", " ").replace("\n", " ")
-
-
-def build_multipart(
-    fields: Mapping[str, str], files: Mapping[str, tuple[str, str, bytes]]
-) -> tuple[bytes, str]:
-    boundary = "----wthaiq" + uuid.uuid4().hex
-    chunks: list[bytes] = []
-    for name, value in fields.items():
-        chunks.append(
-            (
-                f"--{boundary}\r\nContent-Disposition: form-data; "
-                f'name="{_quote_header(name)}"\r\n\r\n'
-            ).encode()
-            + value.encode("utf-8")
-            + b"\r\n"
-        )
-    for name, (filename, content_type, content) in files.items():
-        chunks.append(
-            (
-                f"--{boundary}\r\nContent-Disposition: form-data; "
-                f'name="{_quote_header(name)}"; filename="{_quote_header(filename)}"\r\n'
-                f"Content-Type: {content_type}\r\n\r\n"
-            ).encode()
-            + content
-            + b"\r\n"
-        )
-    chunks.append(f"--{boundary}--\r\n".encode())
-    return b"".join(chunks), f"multipart/form-data; boundary={boundary}"
-
-
 _FILENAME_STAR = re.compile(r"filename\*\s*=\s*(?:UTF-8|utf-8)''([^;]+)")
 _FILENAME = re.compile(r'filename\s*=\s*"([^"]*)"|filename\s*=\s*([^;]+)')
 

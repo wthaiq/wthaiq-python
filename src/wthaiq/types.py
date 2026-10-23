@@ -15,11 +15,9 @@ __all__ = [
     "EVENT_TYPES",
     "BulkCreateParams",
     "CcParams",
-    "DocumentCreateParams",
     "EventListParams",
     "EventRedeliverParams",
     "EventType",
-    "FieldMapEntry",
     "IdentityMatchDecisionParams",
     "LegalLevel",
     "ListParams",
@@ -255,26 +253,6 @@ class IdentityMatchDecisionParams(TypedDict, total=False):
     """Optional internal note stored with the decision (up to 200 characters)."""
 
 
-class FieldMapEntry(TypedDict, total=False):
-    key: str
-    label: str
-    type: Literal["text", "number", "date", "email", "tel", "signature"]
-    page: int
-    x: float
-    y: float
-    w: float
-    h: float
-    required: bool
-    signer: int | str
-
-
-class DocumentCreateParams(TypedDict, total=False):
-    kind: Literal["pdf", "contract"]
-    field_map: Sequence[FieldMapEntry] | str
-    filename: str
-    """File name sent with the upload (defaults to the file's own name)."""
-
-
 class WebhookEndpointCreateParams(TypedDict, total=False):
     url: str
     enabled_events: Sequence[EventType | Literal["*"]]
@@ -328,9 +306,6 @@ class SigningSessionCreateKwargs(SigningSessionCreateParams, RequestOptions, tot
 
 
 class IdentityMatchDecisionKwargs(IdentityMatchDecisionParams, RequestOptions, total=False): ...
-
-
-class DocumentCreateKwargs(DocumentCreateParams, RequestOptions, total=False): ...
 
 
 class WebhookEndpointCreateKwargs(WebhookEndpointCreateParams, RequestOptions, total=False): ...

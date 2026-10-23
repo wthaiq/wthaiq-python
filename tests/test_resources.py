@@ -299,7 +299,7 @@ def test_every_public_method_is_covered() -> None:
     covered = {case.name.split(" ")[0] for case in CASES}
     extra = {"templates.all", "signature_requests.all", "sessions.all", "webhook_endpoints.all",
              "events.all", "flows.all", "signature_requests.download_pdf",
-             "signature_requests.download_pdf_to", "documents.create"}  # fmt: skip
+             "signature_requests.download_pdf_to"}  # fmt: skip
     for name in vars(client):
         if name.startswith("_"):
             continue

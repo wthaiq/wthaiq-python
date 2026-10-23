@@ -4,6 +4,12 @@ All notable changes to this library are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-10-23
+
+### Removed
+
+- `documents.create()` — the API no longer accepts PDF uploads; write contracts as text in templates or the request.
+
 ## [1.0.0] - 2026-10-14
 
 First stable release, targeting API version `2026-07-01`.
@@ -45,4 +51,5 @@ First stable release, targeting API version `2026-07-01`.
 - `verifications.retrieve()` also returns `found=False` when the API answers an unknown reference with a `404`
   error whose code is `not_found`, so its result does not depend on the server version.
 
+[1.1.0]: https://github.com/wthaiq/wthaiq-python/releases/tag/v1.1.0
 [1.0.0]: https://github.com/wthaiq/wthaiq-python/releases/tag/v1.0.0
